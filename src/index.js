@@ -83,13 +83,13 @@ export default class PlacesAutocomplete extends React.Component<
         )
 
         this.setState({
-          suggestions: formattedHits.map((hit, idx) => ({
+          suggestions: formattedHits.map((formattedHit, idx) => ({
             active: this.props.highlightFirstSuggestion && idx === 0,
-            description: hit.value,
-            id: hit.objectID,
+            description: formattedHit.value,
+            id: formattedHit.hit.objectID,
             index: idx,
-            latlng: hit.latlng,
-            placeId: hit.objectID
+            latlng: formattedHit.latlng,
+            placeId: formattedHit.hit.objectID
           }))
         })
       } catch (e) {
@@ -111,10 +111,10 @@ export default class PlacesAutocomplete extends React.Component<
     })
   }
 
-  handleSelect = (address: string, placeId: ?string) => {
+  handleSelect = (suggestion: Suggestion) => {
     this.clearSuggestions()
-    this.props.onChange(address)
-    this.props.onSelect && this.props.onSelect(address, placeId)
+    this.props.onChange(suggestion.description)
+    this.props.onSelect && this.props.onSelect(suggestion)
   }
 
   getActiveSuggestion = () => {
@@ -143,9 +143,11 @@ export default class PlacesAutocomplete extends React.Component<
   handleEnterKey = () => {
     const activeSuggestion = this.getActiveSuggestion()
     if (activeSuggestion === undefined) {
-      this.handleSelect(this.props.value, null)
+      // TODO: is this behaviour okay?
+      // select should only fire when selecting dropdown options
+      this.clearSuggestions()
     } else {
-      this.handleSelect(activeSuggestion.description, activeSuggestion.placeId)
+      this.handleSelect(activeSuggestion)
     }
   }
 
@@ -338,8 +340,7 @@ export default class PlacesAutocomplete extends React.Component<
     if (event && event.preventDefault) {
       event.preventDefault()
     }
-    const { description, placeId } = suggestion
-    this.handleSelect(description, placeId)
+    this.handleSelect(suggestion)
     setTimeout(() => {
       this.mousedownOnSuggestion = false
     })
