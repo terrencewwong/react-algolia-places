@@ -2,42 +2,67 @@
 
 import React from 'react'
 import { storiesOf } from '@storybook/react'
-import { action } from '@storybook/addon-actions';
-import Places from '../src'
+import { action } from '@storybook/addon-actions'
+import PlacesAutocomplete from '../src'
 
-class PlacesDemo extends React.Component<*, {
-  value: string
-}> {
+class PlacesAutocompleteDemo extends React.Component<
+  *,
+  {
+    value: string
+  }
+> {
   state = {
-    value: ""
+    value: ''
   }
 
   handleChange = (value: string) => {
     this.setState({ value })
-    action('onChange')
+    action('onChange')(value)
   }
 
   render () {
     return (
-      <Places
-        onChange={this.handleChange}
+      <PlacesAutocomplete
         value={this.state.value}
+        onChange={this.handleChange}
+        onSelect={action('onSelect')}
       >
-        {({ getInputProps, getSuggestionItemProps, suggestions }) => (
+        {({ getInputProps, suggestions, getSuggestionItemProps }) => (
           <div>
-            <input {...getInputProps()} />
-            <div>
-              {suggestions.map(suggestion => (
-                <div {...getSuggestionItemProps(suggestion)}>
-                  <pre>{JSON.stringify(suggestion, null, 2)}</pre>
-                </div>
-              ))}
+            <input
+              {...getInputProps({
+                placeholder: 'Search PlacesAutocomplete ...',
+                className: 'location-search-input'
+              })}
+            />
+            <div className='autocomplete-dropdown-container'>
+              {suggestions.map(suggestion => {
+                const className = suggestion.active
+                  ? 'suggestion-item--active'
+                  : 'suggestion-item'
+                // inline style for demonstration purpose
+                const style = suggestion.active
+                  ? { backgroundColor: '#fafafa', cursor: 'pointer' }
+                  : { backgroundColor: '#ffffff', cursor: 'pointer' }
+                return (
+                  <div
+                    {...getSuggestionItemProps(suggestion, {
+                      className,
+                      style
+                    })}
+                  >
+                    <span>{suggestion.description}</span>
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}
-      </Places>
+      </PlacesAutocomplete>
     )
   }
 }
 
-storiesOf('Places', module).add('default', () => <PlacesDemo />)
+storiesOf('PlacesAutocomplete', module).add('default', () => (
+  <PlacesAutocompleteDemo />
+))

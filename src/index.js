@@ -1,259 +1,259 @@
 // @flow
-import React from 'react';
-import PropTypes from 'prop-types';
-import debounce from 'lodash.debounce';
-import { compose } from './helpers';
+import React from 'react'
+import algoliasearch from 'algoliasearch/src/browser/builds/algoliasearchLite.js'
+import debounce from 'lodash.debounce'
 
-// transform snake_case to camelCase
-const formattedSuggestion = structured_formatting => ({
-  mainText: structured_formatting.main_text,
-  secondaryText: structured_formatting.secondary_text,
-});
+import formatHit from './formatHit'
+import formatInputValue from './formatInputValue'
+import { compose } from './helpers'
 
-export default class Places extends React.Component {
-  constructor(props) {
-    super(props);
+type Suggestion = {
+  active: boolean,
+  description: string,
+  id: string,
+  index: number,
+  placeId: string
+}
+
+type Props = {
+  onChange: Function,
+  value: string,
+  children: Function,
+  onError?: Function,
+  onSelect?: Function,
+  debounce?: number,
+  highlightFirstSuggestion?: boolean,
+  shouldFetchSuggestions?: boolean
+}
+
+const placesClient = algoliasearch.initPlaces()
+
+export default class PlacesAutocomplete extends React.Component<
+  Props,
+  {
+    ready: boolean,
+    suggestions: Suggestion[],
+    userInputValue: string
+  }
+> {
+  static defaultProps = {
+    searchOptions: {},
+    debounce: 200,
+    highlightFirstSuggestion: false,
+    shouldFetchSuggestions: true
+  }
+
+  mousedownOnSuggestion: boolean = false
+  debouncedFetchPredictions: Function
+
+  constructor (props: Props) {
+    super(props)
 
     this.state = {
       suggestions: [],
       userInputValue: props.value,
-      ready: !props.googleCallbackName,
-    };
+      ready: true
+    }
 
     this.debouncedFetchPredictions = debounce(
       this.fetchPredictions,
       this.props.debounce
-    );
+    )
   }
 
-  componentDidMount() {
-    const { googleCallbackName } = this.props;
-    if (googleCallbackName) {
-      if (!window.google) {
-        window[googleCallbackName] = this.init;
-      } else {
-        this.init();
-      }
-    } else {
-      this.init();
-    }
-  }
-
-  componentWillUnmount() {
-    const { googleCallbackName } = this.props;
-    if (googleCallbackName && window[googleCallbackName]) {
-      delete window[googleCallbackName];
-    }
-  }
-
-  init = () => {
-    if (!window.google) {
-      throw new Error(
-        '[react-places-autocomplete]: Google Maps JavaScript API library must be loaded. See: https://github.com/kenny-hibino/react-places-autocomplete#load-google-library'
-      );
-    }
-
-    if (!window.google.maps.places) {
-      throw new Error(
-        '[react-places-autocomplete]: Google Maps Places library must be loaded. Please add `libraries=places` to the src URL. See: https://github.com/kenny-hibino/react-places-autocomplete#load-google-library'
-      );
-    }
-
-    this.autocompleteService = new window.google.maps.places.AutocompleteService();
-    this.autocompleteOK = window.google.maps.places.PlacesServiceStatus.OK;
-    this.setState(state => {
-      if (state.ready) {
-        return null;
-      } else {
-        return { ready: true };
-      }
-    });
-  };
-
-  autocompleteCallback = (predictions, status) => {
-    if (status !== this.autocompleteOK) {
-      this.props.onError(status, this.clearSuggestions);
-      return;
-    }
-    const { highlightFirstSuggestion } = this.props;
-    this.setState({
-      suggestions: predictions.map((p, idx) => ({
-        id: p.id,
-        description: p.description,
-        placeId: p.place_id,
-        active: highlightFirstSuggestion && idx === 0 ? true : false,
-        index: idx,
-        formattedSuggestion: formattedSuggestion(p.structured_formatting),
-        matchedSubstrings: p.matched_substrings,
-        terms: p.terms,
-        types: p.types,
-      })),
-    });
-  };
-
-  fetchPredictions = () => {
-    const { value } = this.props;
+  fetchPredictions = async () => {
+    const { value } = this.props
     if (value.length) {
-      this.autocompleteService.getPlacePredictions(
-        {
-          ...this.props.searchOptions,
-          input: value,
-        },
-        this.autocompleteCallback
-      );
+      try {
+        const content = await placesClient.search({
+          hitsPerPage: 5,
+          language: 'en',
+          query: value
+        })
+        const hits = content.hits
+        // TODO: expose more of this formatted information
+        const formattedHits = hits.map((hit, hitIndex) =>
+          formatHit({
+            formatInputValue,
+            hit,
+            hitIndex,
+            query: value,
+            rawAnswer: content
+          })
+        )
+
+        this.setState({
+          suggestions: formattedHits.map((hit, idx) => ({
+            active: this.props.highlightFirstSuggestion && idx === 0,
+            description: hit.value,
+            id: hit.objectID,
+            index: idx,
+            latlng: hit.latlng,
+            placeId: hit.objectID
+          }))
+        })
+      } catch (e) {
+        console.error(e)
+      }
     }
-  };
+  }
 
   clearSuggestions = () => {
-    this.setState({ suggestions: [] });
-  };
+    this.setState({ suggestions: [] })
+  }
 
   clearActive = () => {
     this.setState({
       suggestions: this.state.suggestions.map(suggestion => ({
         ...suggestion,
-        active: false,
-      })),
-    });
-  };
+        active: false
+      }))
+    })
+  }
 
-  handleSelect = (address, placeId) => {
-    this.clearSuggestions();
-    this.props.onChange(address);
-    this.props.onSelect && this.props.onSelect(address, placeId);
-  };
+  handleSelect = (address: string, placeId: ?string) => {
+    this.clearSuggestions()
+    this.props.onChange(address)
+    this.props.onSelect && this.props.onSelect(address, placeId)
+  }
 
   getActiveSuggestion = () => {
-    return this.state.suggestions.find(suggestion => suggestion.active);
-  };
+    return this.state.suggestions.find(suggestion => suggestion.active)
+  }
 
-  selectActiveAtIndex = index => {
-    const activeName = this.state.suggestions.find(
+  selectActiveAtIndex = (index: number) => {
+    const activeSuggestion = this.state.suggestions.find(
       suggestion => suggestion.index === index
-    ).description;
-    this.setActiveAtIndex(index);
-    this.props.onChange(activeName);
-  };
+    )
+
+    if (!activeSuggestion) {
+      throw Error('No active description')
+    }
+
+    const activeName = activeSuggestion.description
+    this.setActiveAtIndex(index)
+    this.props.onChange(activeName)
+  }
 
   selectUserInputValue = () => {
-    this.clearActive();
-    this.props.onChange(this.state.userInputValue);
-  };
+    this.clearActive()
+    this.props.onChange(this.state.userInputValue)
+  }
 
   handleEnterKey = () => {
-    const activeSuggestion = this.getActiveSuggestion();
+    const activeSuggestion = this.getActiveSuggestion()
     if (activeSuggestion === undefined) {
-      this.handleSelect(this.props.value, null);
+      this.handleSelect(this.props.value, null)
     } else {
-      this.handleSelect(activeSuggestion.description, activeSuggestion.placeId);
+      this.handleSelect(activeSuggestion.description, activeSuggestion.placeId)
     }
-  };
+  }
 
   handleDownKey = () => {
     if (this.state.suggestions.length === 0) {
-      return;
+      return
     }
 
-    const activeSuggestion = this.getActiveSuggestion();
+    const activeSuggestion = this.getActiveSuggestion()
     if (activeSuggestion === undefined) {
-      this.selectActiveAtIndex(0);
+      this.selectActiveAtIndex(0)
     } else if (activeSuggestion.index === this.state.suggestions.length - 1) {
-      this.selectUserInputValue();
+      this.selectUserInputValue()
     } else {
-      this.selectActiveAtIndex(activeSuggestion.index + 1);
+      this.selectActiveAtIndex(activeSuggestion.index + 1)
     }
-  };
+  }
 
   handleUpKey = () => {
     if (this.state.suggestions.length === 0) {
-      return;
+      return
     }
 
-    const activeSuggestion = this.getActiveSuggestion();
+    const activeSuggestion = this.getActiveSuggestion()
     if (activeSuggestion === undefined) {
-      this.selectActiveAtIndex(this.state.suggestions.length - 1);
+      this.selectActiveAtIndex(this.state.suggestions.length - 1)
     } else if (activeSuggestion.index === 0) {
-      this.selectUserInputValue();
+      this.selectUserInputValue()
     } else {
-      this.selectActiveAtIndex(activeSuggestion.index - 1);
+      this.selectActiveAtIndex(activeSuggestion.index - 1)
     }
-  };
+  }
 
-  handleInputKeyDown = event => {
+  handleInputKeyDown = (event: SyntheticKeyboardEvent<*>) => {
     /* eslint-disable indent */
     switch (event.key) {
       case 'Enter':
-        event.preventDefault();
-        this.handleEnterKey();
-        break;
+        event.preventDefault()
+        this.handleEnterKey()
+        break
       case 'ArrowDown':
-        event.preventDefault(); // prevent the cursor from moving
-        this.handleDownKey();
-        break;
+        event.preventDefault() // prevent the cursor from moving
+        this.handleDownKey()
+        break
       case 'ArrowUp':
-        event.preventDefault(); // prevent the cursor from moving
-        this.handleUpKey();
-        break;
+        event.preventDefault() // prevent the cursor from moving
+        this.handleUpKey()
+        break
       case 'Escape':
-        this.clearSuggestions();
-        break;
+        this.clearSuggestions()
+        break
     }
     /* eslint-enable indent */
-  };
+  }
 
-  setActiveAtIndex = index => {
+  setActiveAtIndex = (index: number) => {
     this.setState({
       suggestions: this.state.suggestions.map((suggestion, idx) => {
         if (idx === index) {
-          return { ...suggestion, active: true };
+          return { ...suggestion, active: true }
         } else {
-          return { ...suggestion, active: false };
+          return { ...suggestion, active: false }
         }
-      }),
-    });
-  };
+      })
+    })
+  }
 
-  handleInputChange = event => {
-    const { value } = event.target;
-    this.props.onChange(value);
-    this.setState({ userInputValue: value });
+  handleInputChange = (event: SyntheticInputEvent<*>) => {
+    const { value } = event.target
+    this.props.onChange(value)
+    this.setState({ userInputValue: value })
     if (!value) {
-      this.clearSuggestions();
-      return;
+      this.clearSuggestions()
+      return
     }
     if (this.props.shouldFetchSuggestions) {
-      this.debouncedFetchPredictions();
+      this.debouncedFetchPredictions()
     }
-  };
+  }
 
   handleInputOnBlur = () => {
     if (!this.mousedownOnSuggestion) {
-      this.clearSuggestions();
+      this.clearSuggestions()
     }
-  };
+  }
 
   getActiveSuggestionId = () => {
-    const activeSuggestion = this.getActiveSuggestion();
+    const activeSuggestion = this.getActiveSuggestion()
     return activeSuggestion
       ? `PlacesAutocomplete__suggestion-${activeSuggestion.placeId}`
-      : null;
-  };
+      : null
+  }
 
   getIsExpanded = () => {
-    return this.state.suggestions.length > 0;
-  };
+    return this.state.suggestions.length > 0
+  }
 
-  getInputProps = (options = {}) => {
+  getInputProps = (options: Object = {}) => {
     if (options.hasOwnProperty('value')) {
       throw new Error(
         '[react-places-autocomplete]: getInputProps does not accept `value`. Use `value` prop instead'
-      );
+      )
     }
 
     if (options.hasOwnProperty('onChange')) {
       throw new Error(
         '[react-places-autocomplete]: getInputProps does not accept `onChange`. Use `onChange` prop instead'
-      );
+      )
     }
 
     const defaultInputProps = {
@@ -263,8 +263,8 @@ export default class Places extends React.Component {
       'aria-autocomplete': 'list',
       'aria-expanded': this.getIsExpanded(),
       'aria-activedescendant': this.getActiveSuggestionId(),
-      disabled: !this.state.ready,
-    };
+      disabled: !this.state.ready
+    }
 
     return {
       ...defaultInputProps,
@@ -272,21 +272,21 @@ export default class Places extends React.Component {
       onKeyDown: compose(this.handleInputKeyDown, options.onKeyDown),
       onBlur: compose(this.handleInputOnBlur, options.onBlur),
       value: this.props.value,
-      onChange: event => {
-        this.handleInputChange(event);
-      },
-    };
-  };
+      onChange: (event: SyntheticInputEvent<*>) => {
+        this.handleInputChange(event)
+      }
+    }
+  }
 
-  getSuggestionItemProps = (suggestion, options = {}) => {
+  getSuggestionItemProps = (suggestion: Suggestion, options: Object = {}) => {
     const handleSuggestionMouseEnter = this.handleSuggestionMouseEnter.bind(
       this,
       suggestion.index
-    );
+    )
     const handleSuggestionClick = this.handleSuggestionClick.bind(
       this,
       suggestion
-    );
+    )
 
     return {
       ...options,
@@ -305,82 +305,52 @@ export default class Places extends React.Component {
         options.onTouchStart
       ),
       onTouchEnd: compose(this.handleSuggestionMouseUp, options.onTouchEnd),
-      onClick: compose(handleSuggestionClick, options.onClick),
-    };
-  };
+      onClick: compose(handleSuggestionClick, options.onClick)
+    }
+  }
 
-  handleSuggestionMouseEnter = index => {
-    this.setActiveAtIndex(index);
-  };
+  handleSuggestionMouseEnter = (index: number) => {
+    this.setActiveAtIndex(index)
+  }
 
   handleSuggestionMouseLeave = () => {
-    this.mousedownOnSuggestion = false;
-    this.clearActive();
-  };
+    this.mousedownOnSuggestion = false
+    this.clearActive()
+  }
 
-  handleSuggestionMouseDown = event => {
-    event.preventDefault();
-    this.mousedownOnSuggestion = true;
-  };
+  handleSuggestionMouseDown = (event: SyntheticMouseEvent<*>) => {
+    event.preventDefault()
+    this.mousedownOnSuggestion = true
+  }
 
   handleSuggestionTouchStart = () => {
-    this.mousedownOnSuggestion = true;
-  };
+    this.mousedownOnSuggestion = true
+  }
 
   handleSuggestionMouseUp = () => {
-    this.mousedownOnSuggestion = false;
-  };
+    this.mousedownOnSuggestion = false
+  }
 
-  handleSuggestionClick = (suggestion, event) => {
+  handleSuggestionClick = (
+    suggestion: Suggestion,
+    event: SyntheticEvent<*>
+  ) => {
     if (event && event.preventDefault) {
-      event.preventDefault();
+      event.preventDefault()
     }
-    const { description, placeId } = suggestion;
-    this.handleSelect(description, placeId);
+    const { description, placeId } = suggestion
+    this.handleSelect(description, placeId)
     setTimeout(() => {
-      this.mousedownOnSuggestion = false;
-    });
-  };
+      this.mousedownOnSuggestion = false
+    })
+  }
 
-  render() {
+  render () {
+    console.log('suggestions', this.state.suggestions)
     return this.props.children({
       getInputProps: this.getInputProps,
       getSuggestionItemProps: this.getSuggestionItemProps,
-      suggestions: this.state.suggestions,
-    });
+      suggestions: this.state.suggestions
+    })
   }
 }
-
-PlacesAutocomplete.propTypes = {
-  onChange: PropTypes.func.isRequired,
-  value: PropTypes.string.isRequired,
-  children: PropTypes.func.isRequired,
-  onError: PropTypes.func,
-  onSelect: PropTypes.func,
-  searchOptions: PropTypes.shape({
-    bounds: PropTypes.object,
-    componentRestrictions: PropTypes.object,
-    location: PropTypes.object,
-    offset: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
-    radius: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
-    types: PropTypes.array,
-  }),
-  debounce: PropTypes.number,
-  highlightFirstSuggestion: PropTypes.bool,
-  shouldFetchSuggestions: PropTypes.bool,
-  googleCallbackName: PropTypes.string,
-};
-
-PlacesAutocomplete.defaultProps = {
-  /* eslint-disable no-unused-vars, no-console */
-  onError: (status, _clearSuggestions) =>
-    console.error(
-      '[react-places-autocomplete]: error happened when fetching data from Google Maps API.\nPlease check the docs here (https://developers.google.com/maps/documentation/javascript/places#place_details_responses)\nStatus: ',
-      status
-    ),
-  /* eslint-enable no-unused-vars, no-console */
-  searchOptions: {},
-  debounce: 200,
-  highlightFirstSuggestion: false,
-  shouldFetchSuggestions: true,
-};

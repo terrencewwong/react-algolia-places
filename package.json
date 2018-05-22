@@ -10,11 +10,13 @@
     "@storybook/react": "^3.4.5",
     "babel-cli": "^6.26.0",
     "babel-core": "^6.26.3",
+    "babel-eslint": "^8.2.3",
     "babel-polyfill": "^6.26.0",
     "babel-preset-env": "^1.7.0",
     "babel-preset-flow": "^6.23.0",
     "babel-preset-react": "^6.24.1",
     "babel-preset-stage-2": "^6.24.1",
+    "eslint-plugin-flowtype": "^2.46.3",
     "flow-bin": "^0.72.0",
     "flow-typed": "^2.4.0",
     "flow-watch": "^1.1.3",
@@ -23,7 +25,7 @@
     "prettier-standard": "^8.0.1",
     "react": "^16.3.2",
     "react-dom": "^16.3.2",
-    "standard-flow": "^1.0.0"
+    "standard": "^11.0.1"
   },
   "peerDependencies": {
     "react": "^16.3.2",
@@ -35,12 +37,12 @@
   },
   "lint-staged": {
     "src/*.js": [
-      "standard-flow --fix",
+      "standard --fix",
       "prettier-standard",
       "git add"
     ],
     "stories/*.js": [
-      "standard-flow --fix",
+      "standard --fix",
       "prettier-standard",
       "git add"
     ]
@@ -51,11 +53,20 @@
     }
   },
   "standard": {
-    "parser": "babel-eslint"
+    "globals": [
+      "SyntheticEvent",
+      "SyntheticInputEvent",
+      "SyntheticKeyboardEvent",
+      "SyntheticMouseEvent"
+    ],
+    "parser": "babel-eslint",
+    "plugins": [
+      "flowtype"
+    ]
   },
   "scripts": {
     "build": "babel -d lib src",
     "build-storybook": "build-storybook",
-    "storybook": "start-storybook -p 6006"
+    "storybook": "start-storybook -p 7007"
   }
 }
