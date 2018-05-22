@@ -1,5 +1,5 @@
 {
-  "name": "react-algolia-places",
+  "name": "@wongterrencew/react-algolia-places",
   "main": "lib/index.js",
   "author": "Terrence Wong <wongterrencew@gmail.com>",
   "license": "MIT",
