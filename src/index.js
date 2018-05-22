@@ -346,7 +346,6 @@ export default class PlacesAutocomplete extends React.Component<
   }
 
   render () {
-    console.log('suggestions', this.state.suggestions)
     return this.props.children({
       getInputProps: this.getInputProps,
       getSuggestionItemProps: this.getSuggestionItemProps,
