@@ -1,11 +1,12 @@
 {
-  "name": "@wongterrencew/react-algolia-places",
+  "name": "@wongterrencew/react-algolia-places-autocomplete",
   "main": "lib/index.js",
   "author": "Terrence Wong <wongterrencew@gmail.com>",
   "license": "MIT",
-  "version": "0.0.3",
+  "version": "0.0.1",
   "devDependencies": {
     "@storybook/addon-actions": "^3.4.5",
+    "@storybook/addon-knobs": "^3.4.6",
     "@storybook/addon-links": "^3.4.5",
     "@storybook/addons": "^3.4.5",
     "@storybook/react": "^3.4.5",

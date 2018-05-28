@@ -16,14 +16,17 @@ type Suggestion = {
 }
 
 type Props = {
-  onChange: Function,
-  value: string,
   children: Function,
-  onError?: Function,
-  onSelect?: Function,
+  countries?: string[],
   debounce?: number,
   highlightFirstSuggestion?: boolean,
-  shouldFetchSuggestions?: boolean
+  hitsPerPage: number,
+  language: string,
+  onChange: Function,
+  onError?: Function,
+  onSelect?: Function,
+  shouldFetchSuggestions?: boolean,
+  value: string
 }
 
 const placesClient = algoliasearch.initPlaces()
@@ -37,7 +40,8 @@ export default class PlacesAutocomplete extends React.Component<
   }
 > {
   static defaultProps = {
-    searchOptions: {},
+    hitsPerPage: 5,
+    language: 'en',
     debounce: 200,
     highlightFirstSuggestion: false,
     shouldFetchSuggestions: true
@@ -65,11 +69,18 @@ export default class PlacesAutocomplete extends React.Component<
     const { value } = this.props
     if (value.length) {
       try {
-        const content = await placesClient.search({
-          hitsPerPage: 5,
-          language: 'en',
+        // Typecast as object so we can add properties
+        const payload: Object = {
+          hitsPerPage: this.props.hitsPerPage,
+          language: this.props.language,
           query: value
-        })
+        }
+
+        if (this.props.countries) {
+          payload.countries = this.props.countries
+        }
+
+        const content = await placesClient.search(payload)
         const hits = content.hits
         // TODO: expose more of this formatted information
         const formattedHits = hits.map((hit, hitIndex) =>

@@ -3,6 +3,7 @@
 import React from 'react'
 import { storiesOf } from '@storybook/react'
 import { action } from '@storybook/addon-actions'
+import { withKnobs, array } from '@storybook/addon-knobs'
 import PlacesAutocomplete from '../src'
 
 class PlacesAutocompleteDemo extends React.Component<
@@ -26,6 +27,7 @@ class PlacesAutocompleteDemo extends React.Component<
         value={this.state.value}
         onChange={this.handleChange}
         onSelect={action('onSelect')}
+        countries={array('countries', ['fr'])}
       >
         {({ getInputProps, suggestions, getSuggestionItemProps }) => (
           <div>
@@ -63,6 +65,8 @@ class PlacesAutocompleteDemo extends React.Component<
   }
 }
 
-storiesOf('PlacesAutocomplete', module).add('default', () => (
-  <PlacesAutocompleteDemo />
-))
+const stories = storiesOf('PlacesAutocomplete', module)
+
+stories.addDecorator(withKnobs)
+
+stories.add('default', () => <PlacesAutocompleteDemo />)
